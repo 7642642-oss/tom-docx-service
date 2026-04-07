@@ -540,7 +540,128 @@ async function buildJD(data) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.0.0' });
+  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.1.0' });
+});
+
+// Claude parse: POST /claude-parse
+// Body: { text: '<anketa text>', filename: '<name>' }
+// Returns: structured JSON extracted by Claude
+app.post('/claude-parse', async (req, res) => {
+  try {
+    const { text, filename, apiKey } = req.body;
+    if (!text) return res.status(400).json({ error: 'Missing text field' });
+    if (!apiKey) return res.status(400).json({ error: 'Missing apiKey field' });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 4096,
+        system: `You are an expert HR analyst at TOM LLC (Talimarjan Operations and Maintenance LLC), a 900MW CCGT power plant in Uzbekistan.
+Extract structured data from a job questionnaire written in Uzbek.
+Return ONLY a valid JSON object with NO additional text, markdown, or explanation.
+Use this exact structure:
+{
+  "position_uz": "<full position name>",
+  "department_uz": "<department name>",
+  "reports_to_uz": "<direct supervisor>",
+  "has_subordinates": true/false,
+  "subordinate_count": 0,
+  "duties": [{"description_uz": "<duty>", "importance": 10, "time_pct": 20}],
+  "substitute_for_uz": "<who this substitutes>",
+  "substituted_by_uz": "<who substitutes this>",
+  "education_level": "secondary|secondary_special|higher_nonspec|higher_spec",
+  "special_skills_uz": "<skills or Yo'q>",
+  "experience_years": 3,
+  "management_experience_required": false,
+  "language_level": "none|basic|intermediate|advanced",
+  "software_level": "none|standard|advanced",
+  "managerial_authority": false,
+  "special_conditions_uz": "<conditions or Shart emas>"
+}`,
+        messages: [{ role: 'user', content: 'Extract structured data:\n\n' + text }]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+
+    const content = data.content[0].text;
+    const clean = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+    parsed.source_filename = filename || 'unknown.docx';
+    res.json(parsed);
+  } catch (err) {
+    console.error('[claude-parse]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Claude generate JD: POST /claude-generate
+// Body: { structuredData: {...}, apiKey: 'sk-ant-...' }
+// Returns: complete JD JSON for /generate endpoint
+app.post('/claude-generate', async (req, res) => {
+  try {
+    const { structuredData, apiKey } = req.body;
+    if (!structuredData) return res.status(400).json({ error: 'Missing structuredData' });
+    if (!apiKey) return res.status(400).json({ error: 'Missing apiKey' });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 8192,
+        system: `You are a senior HR specialist at TOM LLC (Talimarjan Operations and Maintenance LLC), a 900MW CCGT power plant in Uzbekistan.
+Write professional trilingual Job Descriptions (EN | RU | UZ).
+CEO: Alaa Makki. HR Director: S. Puchka. Location: Talimarjan Power Plant, Kashkadarya Region.
+Return ONLY a valid JSON object with NO additional text.
+Required structure:
+{
+  "pos": {"en":"","ru":"","uz":"","dept_en":"","dept_ru":"","dept_uz":""},
+  "docCode": "TOM_INT_HRD_JD_[DEPT]_[SEQ]",
+  "filename": "TOM_INT_HRD_JD_[DEPT]_[SEQ]_EMP_[Title]_EN_RU_UZ_V1.docx",
+  "reportsTo": {"en":"","ru":"","uz":""},
+  "directReports": "None / Нет / Yo'q",
+  "grade": "GSO-X | Level",
+  "purpose": {"en":"","ru":"","uz":""},
+  "duties": [{"title":{"en":"3.1 Title (X%)","ru":"","uz":""},"en":[],"ru":[],"uz":[]}],
+  "kpis": [["EN name","RU name","UZ name","Target","Frequency"]],
+  "education": {"en":"","ru":"","uz":""},
+  "expYears": 3,
+  "languages": {"en":"","ru":"","uz":""},
+  "schedule": {"en":"","ru":"","uz":""},
+  "career": {"upward":{"en":"","enDesc":"","ru":"","ruDesc":"","uz":"","uzDesc":""},"lateral":null},
+  "supervisor": {"en":"","ru":"","uz":""}
+}`,
+        messages: [{
+          role: 'user',
+          content: 'Generate complete trilingual JD for this position:\n\n' + JSON.stringify(structuredData, null, 2) + '\n\nRules:\n- duties time% must sum to 100\n- Generate 5 relevant KPIs\n- Shift workers: 12-hour rotating schedule\n- Office workers: 5-day week\n- Use power plant terminology'
+        }]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json(data);
+
+    const content = data.content[0].text;
+    const clean = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jdData = JSON.parse(clean);
+    jdData.source_filename = structuredData.source_filename;
+    res.json(jdData);
+  } catch (err) {
+    console.error('[claude-generate]', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Main endpoint: POST /generate
