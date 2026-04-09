@@ -540,7 +540,7 @@ async function buildJD(data) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.1.0' });
+  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.2.0' });
 });
 
 // Claude parse: POST /claude-parse
