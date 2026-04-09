@@ -623,7 +623,7 @@ app.post('/claude-generate', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 8192,
+        max_tokens: 16000,
         system: `You are a senior HR specialist at TOM LLC (Talimarjan Operations and Maintenance LLC), a 900MW CCGT power plant in Uzbekistan.
 Write professional trilingual Job Descriptions (EN | RU | UZ).
 CEO: Alaa Makki. HR Director: S. Puchka. Location: Talimarjan Power Plant, Kashkadarya Region.
@@ -719,7 +719,7 @@ app.post('/process', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 8192,
+        max_tokens: 16000,
         system: `You are a senior HR specialist at TOM LLC (Talimarjan Operations and Maintenance LLC), a 900MW CCGT power plant in Uzbekistan.
 You will receive a job questionnaire in Uzbek. In ONE response, extract the data AND generate a complete trilingual Job Description.
 CEO: Alaa Makki. HR Director: S. Puchka. Location: Talimarjan Power Plant, Kashkadarya Region, Uzbekistan.
