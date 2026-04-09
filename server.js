@@ -540,7 +540,7 @@ async function buildJD(data) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.2.0' });
+  res.json({ status: 'ok', service: 'TOM docx-service', version: '1.3.0' });
 });
 
 // Claude parse: POST /claude-parse
@@ -607,7 +607,10 @@ Use this exact structure:
 // Returns: complete JD JSON for /generate endpoint
 app.post('/claude-generate', async (req, res) => {
   try {
-    const { structuredData, apiKey } = req.body;
+    let { structuredData, structuredDataStr, apiKey } = req.body;
+    if (!structuredData && structuredDataStr) {
+      try { structuredData = JSON.parse(structuredDataStr); } catch(e) { return res.status(400).json({ error: 'Invalid structuredDataStr' }); }
+    }
     if (!structuredData) return res.status(400).json({ error: 'Missing structuredData' });
     if (!apiKey) return res.status(400).json({ error: 'Missing apiKey' });
 
